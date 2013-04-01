@@ -8,11 +8,13 @@ use warnings;
 use Text::FormatTable;
 use Term::ANSIColor;
 use Term::ReadKey;
+use Getopt::Long;
+use YAML::Tiny;
 use Data::Dumper;
 
-
-my $SERVER = 'localhost';
-my $REMOTE_USER = 'root';
+# Global Constants
+my $WEBPUSH_CONFIG = './webpush.yml';
+my $YAML_CONFIG = YAML::Tiny->read($WEBPUSH_CONFIG);
 my $TEMPLATE_FILE = '/root/apachetemplate';
 my $TEMPLATE_TEMP_VALUE = 'WEBPUSH_APP_NAME';
 my $SITES_AVAILABLE_DIR = '/etc/apache2/sites-available';
@@ -23,6 +25,22 @@ if (defined($ARGV[0]))
 {
   $COMMAND = lc($ARGV[0]);
 }
+
+# Command line arguments
+my $DEBUG = $YAML_CONFIG->[0]->{'debug'};
+my $SERVER = $YAML_CONFIG->[0]->{'server'};
+my $REMOTE_USER = $YAML_CONFIG->[0]->{'remote_user'};
+my $REPO_TYPE;
+my $START;
+my $RESULT = GetOptions
+(
+  'debug' => \$DEBUG,
+  'start' => \$START,
+  'server=s' => \$SERVER,
+  'user=s' => \$REMOTE_USER,
+  'type=s' => \$REPO_TYPE
+);
+
 
 main();
 
@@ -78,12 +96,19 @@ sub run_command
 sub run_local_command
 {
   my $command = shift;
-  print "\n I am going to run:\n$command\n";
+  if ($DEBUG)
+  {
+    style_text("Running command: $command\n", 'BLUE');
+  }
   my $command_output = `$command`;
   my $exit_code = $?;
   my %return_hash;
   $return_hash{'exit_code'} = $exit_code;
   $return_hash{'output'} = $command_output;
+  if ($DEBUG)
+  {
+    style_text("Exit code: $exit_code\nOutput:\n$command_output\n\n", 'BLUE');
+  }
   return %return_hash;
 }
 
@@ -214,6 +239,47 @@ sub basic_help
   print "For more help, run 'webpush help'\n";
 }
 
+sub adv_help
+{
+  print
+  "Help\n\n" .
+  "Usage: webpush [COMMAND] [APP NAME] [PARAMETER] ... [OPTIONS]\n\n" .
+  "Commands:\n" .
+  "          Status  - Lists all apps present on server and the status of each\n" .
+  "                    app (running or stopped).\n" .
+  "          Create  - Create an app on the server.\n" .
+  "          Delete  - Delete an app on the server. The app will be stopped\n" .
+  "                    automatically if it's current running\n" .
+  "          Start   - Start an app\n" .
+  "          Stop    - Stop an app\n" .
+  "          Root    - Change the document root of the app.\n" .
+  "                    NOTE: The parameter should contain the new root path, relative to\n" .
+  "                    the root of the project directory\n" .
+  "          Upload  - Upload files to an app. This can either be from an SVN\n" .
+  "                    git repository, or from a file on the local PC.\n" .
+  "                    NOTE: The parameter should contain the url of the files to upload\n" .
+  "          Update  - Updates the version of the files of the app (only available\n" .
+  "                    if uploaded from a SVN or git repository, or uploaded directory\n" .
+  "                    contained repository information for SVN or git.\n" .
+  "                    NOTE: The parameter should contain the revision to be updated to.\n" .
+  "Options:\n" .
+  "         --debug           - Enables debug information to be printed during execution\n" .
+  "         --server=HOSTNAME - Configures the app server to be used\n" .
+  "                             NOTE: This option overrides the value specified in the\n" .
+  "                             config file.\n" .
+  "         --user=USERNAME   - Configures the user to connect to the app server as\n" .
+  "                             NOTE: This option overrides the value specified in the\n" .
+  "                             config file.\n" .
+  "         --start           - Start the app after creation\n" .
+  "                             NOTE: Only used with 'Create' command\n" .
+  "         --type=REPO_TYPE  - Specifies the repo type for the upload.\n" .
+  "                             Available Values: 'SVN', 'Git' or 'File'.\n" .
+  "                             NOTE: Only used with 'Upload' command.\n" .
+  "         --config=FILE     - Specifies the YAML config file to be used.\n" .
+  "                             Default Value: './webpush.yml'\n" .
+  "\n\nCopyright Dock Studios 2013";
+}
+
 sub get_app_status
 {
   my $app_name = shift;
@@ -309,6 +375,7 @@ sub create_app
   if (check_app_exists($app_name))
   {
     style_text("ERROR: App already exists\n", 'RED');
+    return 0;
   }
   else
   {
@@ -316,6 +383,7 @@ sub create_app
     run_command("sed -i 's/$TEMPLATE_TEMP_VALUE/$app_name/g' $config_file");
     my %create_dir = run_command("mkdir $app_dir");
     style_text("SUCCESS: Created app $app_name\n", 'GREEN');
+    return 1;
   }
 }
 
@@ -330,6 +398,7 @@ sub delete_app
   {
     if (get_app_status($app_name))
     {
+      style_text("INFO: Stopping $app_name before removing\n", 'YELLOW');
       stop_app($app_name);
     }
     my $config_file = get_app_config($app_name);
@@ -568,7 +637,11 @@ sub main
   elsif ($COMMAND eq 'create')
   {
     require_arg(1);
-    create_app($ARGV[1]);
+    if (create_app($ARGV[1]) && $START)
+    {
+      style_text("INFO: Starting $ARGV[1]\n", 'YELLOW');
+      start_app($ARGV[1]);
+    }
   }
   elsif ($COMMAND eq 'delete')
   {
@@ -583,11 +656,7 @@ sub main
   elsif ($COMMAND eq 'upload')
   {
     require_arg(2);
-    if (!defined($ARGV[3]))
-    {
-      $ARGV[3] = '';
-    }
-    upload_content($ARGV[1], $ARGV[2], $ARGV[3]);
+    upload_content($ARGV[1], $ARGV[2], $REPO_TYPE);
   }
   elsif ($COMMAND eq 'root')
   {
@@ -597,6 +666,10 @@ sub main
   elsif ($COMMAND eq 'key')
   {
     print_public_key();
+  }
+  elsif ($COMMAND eq 'help')
+  {
+    adv_help();
   }
   else
   {

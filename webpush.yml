@@ -1,0 +1,3 @@
+server: localhost
+remote_user: root
+debug: 0
