@@ -13,8 +13,6 @@ use YAML::Tiny;
 use Data::Dumper;
 
 # Global Constants
-my $WEBPUSH_CONFIG = './webpush.yml';
-my $YAML_CONFIG = YAML::Tiny->read($WEBPUSH_CONFIG);
 my $TEMPLATE_FILE = '/root/apachetemplate';
 my $TEMPLATE_TEMP_VALUE = 'WEBPUSH_APP_NAME';
 my $SITES_AVAILABLE_DIR = '/etc/apache2/sites-available';
@@ -27,6 +25,16 @@ if (defined($ARGV[0]))
 }
 
 # Command line arguments
+# Get config file, if specified and load config
+my $WEBPUSH_CONFIG = './webpush.yml';
+my $RESULT1 = GetOptions
+(
+  'config=s' => \$WEBPUSH_CONFIG
+);
+my $YAML_CONFIG = YAML::Tiny->read($WEBPUSH_CONFIG);
+
+# Get rest of command line options and default
+# to options from config file
 my $DEBUG = $YAML_CONFIG->[0]->{'debug'};
 my $SERVER = $YAML_CONFIG->[0]->{'server'};
 my $REMOTE_USER = $YAML_CONFIG->[0]->{'remote_user'};
@@ -41,6 +49,20 @@ my $RESULT = GetOptions
   'type=s' => \$REPO_TYPE
 );
 
+# Check if basic config options have been specified anywhere.
+# If not, exit.
+if (!defined($SERVER) || !defined($REMOTE_USER))
+{
+  style_text
+  (
+    "ERROR: Server/remote user configuration can not be found.\n" .
+    "       Either specify --config=FILE with config file with\n" .
+    "       the required settings, or specify both\n" .
+    "       --server=HOSTNAME and --user=USERNAME\n",
+    'RED'
+  );
+  die();
+}
 
 main();
 
