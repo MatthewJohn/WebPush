@@ -71,13 +71,21 @@ sub get_credentials
 sub run_command
 {
   my $command = shift;
-  my $command_output = `ssh -o 'PasswordAuthentication=no' -o 'StrictHostKeyChecking=no' $REMOTE_USER\@$SERVER "$command"`;
+  my %return_hash = run_local_command("ssh -o 'PasswordAuthentication=no' -o 'StrictHostKeyChecking=no' $REMOTE_USER\@$SERVER \"$command\"");
+  return %return_hash;
+}
+
+sub run_local_command
+{
+  my $command = shift;
+  my $command_output = `$command`;
   my $exit_code = $?;
   my %return_hash;
   $return_hash{'exit_code'} = $exit_code;
   $return_hash{'output'} = $command_output;
   return %return_hash;
 }
+
 
 sub restart_apache
 {
