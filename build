@@ -1,13 +1,18 @@
 #!/bin/bash
 
-# Install requirements for perl script
-apt-get install --assume-yes libtext-formattable-perl libterm-readkey-perl
+# If bin directory doesn't exist, probably means this script
+# hasn't been run yet, so install dependencies
+if [ ! -d './bin' ]
+then
+  # Install requirements for perl script
+  apt-get install --assume-yes libtext-formattable-perl libterm-readkey-perl
 
-# Install requirement for builder
-apt-get install --assume-yes libpar-packer-perl
+  # Install requirement for builder
+  apt-get install --assume-yes libpar-packer-perl
 
-# Make directory for output
-mkdir bin
+  # Make directory for output
+  mkdir bin
+fi
 
 # Build application
 pp -o bin/webpush webpush.pl
