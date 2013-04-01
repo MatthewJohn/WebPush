@@ -43,7 +43,7 @@ sub check_authentication
 sub run_command
 {
   my $command = shift;
-  my $command_output = `ssh -o 'PasswordAuthentication=no' -o 'StrictHostKeyChecking=no' $REMOTE_USER\@$SERVER $command`;
+  my $command_output = `ssh -o 'PasswordAuthentication=no' -o 'StrictHostKeyChecking=no' $REMOTE_USER\@$SERVER "$command"`;
   my $exit_code = $?;
   my %return_hash;
   $return_hash{'exit_code'} = $exit_code;
@@ -66,8 +66,9 @@ sub get_app_repo_type
   if (check_app_exists($app_name))
   {
     my $repo_type = 0;
-    my %git_output = run_command("ls $APP_BASE_DIR/$app_name/.git");
-    my %svn_output = run_command("ls $APP_BASE_DIR/$app_name/.svn");
+    my $app_dir = get_app_dir($app_name);
+    my %git_output = run_command("ls $app_dir/.git");
+    my %svn_output = run_command("ls $app_dir/.svn");
     if (!$git_output{'exit_code'})
     {
       $repo_type = 1;
@@ -257,10 +258,17 @@ sub style_text
   print color 'RESET';
 }
 
+sub get_app_config
+{
+  my $app_name = shift;
+  return "$SITES_AVAILABLE_DIR/$app_name";
+}
+
 sub create_app
 {
   my $app_name = shift;
-  my $config_file = "$SITES_AVAILABLE_DIR/$app_name";
+  my $config_file = get_app_config($app_name);
+  my $app_dir = get_app_dir($app_name);
   if (check_app_exists($app_name))
   {
     style_text("ERROR: App already exists\n", 'RED');
@@ -269,7 +277,7 @@ sub create_app
   {
     my %create_config = run_command("cp $TEMPLATE_FILE $config_file");
     run_command("sed -i 's/$TEMPLATE_TEMP_VALUE/$app_name/g' $config_file");
-    my %create_dir = run_command("mkdir $APP_BASE_DIR/$app_name");
+    my %create_dir = run_command("mkdir $app_dir");
     style_text("SUCCESS: Created app $app_name\n", 'GREEN');
   }
 }
@@ -287,8 +295,8 @@ sub delete_app
     {
       stop_app($app_name);
     }
-    my $config_file = "$SITES_AVAILABLE_DIR/$app_name";
-    my $app_dir = "$APP_BASE_DIR/$app_name";
+    my $config_file = get_app_config($app_name);
+    my $app_dir = get_app_dir($app_name);
     my %remove_config_output = run_command("rm $config_file");
     if ($remove_config_output{'exit_code'})
     {
@@ -305,6 +313,55 @@ sub delete_app
   }
 }
 
+sub get_app_dir
+{
+  my $app_name = shift;
+  return "$APP_BASE_DIR/$app_name";
+}
+
+sub update_app
+{
+  my ($app_name, $revision) = @_;
+  my $app_dir = get_app_dir($app_name);
+  my $git_dir = "$app_dir/.git";
+  if (check_app_exists($app_name))
+  {
+    my $repo_type = get_app_repo_type($app_name);
+    if ($repo_type == 0)
+    {
+      # I need to upload the client's files :S
+    }
+    # If the repo type is git
+    elsif ($repo_type == 1)
+    {
+      my %update_output = run_command("git --work-tree=$app_dir --git-dir=$git_dir checkout $revision");
+      if ($update_output{'exit_code'})
+      {
+        style_text("ERROR: A problem occurred during git checkout:\n", 'RED');
+        die($update_output{'output'});
+      }
+      else
+      {
+        style_text("SUCCESS: $app_name has been updated to $revision\n", 'GREEN');
+      }
+    }
+    # If the repo type is SVN
+    elsif ($repo_type == 2)
+    {
+      my %update_output = run_command("svn update $app_dir -r $revision");
+      if ($update_output{'exit_code'})
+      {
+        style_text("ERROR: A problem occurred during svn update:\n");
+        die($update_output{'output'});
+      }
+      else
+      {
+        style_text("SUCCESS: $app_name has been updated to $revision\n", 'GREEN');
+      }
+    }
+  }
+}
+
 sub require_arg
 {
   my $argument_num = shift;
@@ -312,6 +369,68 @@ sub require_arg
   {
     style_text("There are not enough arguments defined!\n", 'red');
     die();
+  }
+}
+
+sub upload_content_git
+{
+  my ($app_name, $content_path) = @_;
+  my $app_dir = get_app_dir($app_name);
+  $content_path  =~ s/@/\\@/g;
+  my %upload_output = run_command("git clone $content_path $app_dir");
+  return $upload_output{'exit_code'};
+}
+
+sub upload_content_svn
+{
+  my ($app_name, $content_path) = @_;
+}
+
+sub upload_content
+{
+  my ($app_name, $content_path) = @_;
+
+  # Clean app dir
+  my $app_dir = get_app_dir($app_name);
+  run_command("rm -rf $app_dir");
+  run_command("mkdir $app_dir");
+
+  if (check_app_exists($app_name))
+  {
+    if ($content_path =~ /.*@.*/)
+    {
+      my $git_output = upload_content_git($app_name, $content_path);
+      if (!$git_output)
+      {
+        style_text("SUCCESS: Checked out git repo\n", 'GREEN');
+      }
+    }
+    elsif ($content_path =~ /http.*/)
+    {
+      my $svn_output = upload_content_svn($app_name, $content_path);
+      if ($svn_output)
+      {
+        my $git_output = upload_content_git($app_name, $content_path);
+        if ($git_output)
+        {
+          upload_content_path($app_name, $content_path);
+        }
+      }
+    }
+  }
+}
+
+sub print_public_key
+{
+  my %public_key_output = run_command("cat ~/.ssh/id_rsa.pub");
+  if ($public_key_output{'exit_code'})
+  {
+    style_text("ERROR: A problem occurred whilst obtaining the public key\n");
+  }
+  else
+  {
+    print "The public key for the server is:\n";
+    print $public_key_output{'output'};
   }
 }
 
@@ -348,8 +467,17 @@ sub main
   }
   elsif ($COMMAND eq 'update')
   {
-    require_arg(1);
-    #update_app();
+    require_arg(2);
+    update_app($ARGV[1], $ARGV[2]);
+  }
+  elsif ($COMMAND eq 'upload')
+  {
+    require_arg(2);
+    upload_content($ARGV[1], $ARGV[2]);
+  }
+  elsif ($COMMAND eq 'key')
+  {
+    print_public_key();
   }
   else
   {
