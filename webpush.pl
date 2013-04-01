@@ -78,6 +78,7 @@ sub run_command
 sub run_local_command
 {
   my $command = shift;
+  print "\n I am going to run:\n$command\n";
   my $command_output = `$command`;
   my $exit_code = $?;
   my %return_hash;
@@ -510,6 +511,25 @@ sub upload_content
   }
 }
 
+sub update_app_root
+{
+  my ($app_name, $app_root) = @_;
+  if (check_app_exists($app_name))
+  {
+    my $config_file = get_app_config($app_name);
+    my $app_dir = get_app_dir($app_name);
+    $app_root =~ s/\//\\\//g;
+    $app_dir =~ s/\//\\\//g;
+    run_command("sed -i 's/.*DocumentRoot.*/DocumentRoot $app_dir$app_root/g\' $config_file");
+    restart_apache();
+    style_text("SUCCESS: Updated application root\n", 'GREEN');
+  }
+  else
+  {
+    style_text("ERROR: App does not exist\n", 'RED');
+  }
+}
+
 sub print_public_key
 {
   my %public_key_output = run_command("cat ~/.ssh/id_rsa.pub");
@@ -568,6 +588,11 @@ sub main
       $ARGV[3] = '';
     }
     upload_content($ARGV[1], $ARGV[2], $ARGV[3]);
+  }
+  elsif ($COMMAND eq 'root')
+  {
+    require_arg(2);
+    update_app_root($ARGV[1], $ARGV[2]);
   }
   elsif ($COMMAND eq 'key')
   {
