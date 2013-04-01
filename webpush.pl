@@ -10,6 +10,7 @@ use Term::ANSIColor;
 use Term::ReadKey;
 use Getopt::Long;
 use YAML::Tiny;
+use Net::SSH;
 use Data::Dumper;
 
 # Global Constants
@@ -67,7 +68,7 @@ if (!defined($REMOTE_USER))
 # If not, exit.
 if (!defined($SERVER) || !defined($REMOTE_USER))
 {
-  style_text
+  style_die
   (
     "ERROR: Server/remote user configuration can not be found.\n" .
     "       Either specify --config=FILE with config file with\n" .
@@ -75,7 +76,6 @@ if (!defined($SERVER) || !defined($REMOTE_USER))
     "       --server=HOSTNAME and --user=USERNAME\n",
     'RED'
   );
-  die();
 }
 
 main();
@@ -96,15 +96,49 @@ sub check_authentication
   my %authentication_status = run_command('exit');
   if ($authentication_status{'exit_code'})
   {
-    if ($authentication_status{'output'} =~ /Permission denied \(publickey,password\)./)
+    if ($authentication_status{'output'} =~ /Permission\sdenied/)
     {
-      print "Authentication error, would you liek to add ";
+      style_text
+      (
+        "INFO: Your public key is not currently accepted by the server.\n" .
+        "      Would you like to enter credentials and WebPush will add\n" .
+        "      your public key for future access? (Y/N): ",
+        'YELLOW'
+      );
+      my $add_key = ReadLine(0);
+      chomp($add_key);
+      if (lc($add_key) eq 'y')
+      {
+        add_public_key();
+      }
+      else
+      {
+        style_die("ERROR: You cannot authenticate with the remote server\n", 'RED');
+      }
     }
     else
     {
-      die("ERROR: You cannot authenticate with the remote server\n");
+      style_die("ERROR: You cannot authenticate with the remote server\n", 'RED');
     }
   }
+}
+
+sub add_public_key
+{
+  # Get username
+  print "Username: ";
+  my $username = ReadLine(0);
+  chomp($username);
+
+  my $public_key_file = $ENV{'HOME'} . '/.ssh/id_rsa.pub';
+  open FILE, "<$public_key_file";
+  my $file_contents = do
+  {
+    local $/;
+    <FILE>
+  };
+  my $public_key = $file_contents;
+  my %command_output = run_local_command("ssh $username\@$SERVER 'echo \"$public_key\" >> ~/.ssh/authorized_keys'");
 }
 
 sub get_credentials
@@ -143,7 +177,7 @@ sub run_local_command
   {
     style_text("Running command: $command\n", 'BLUE');
   }
-  my $command_output = `$command`;
+  my $command_output = `$command 2>&1`;
   my $exit_code = $?;
   my %return_hash;
   $return_hash{'exit_code'} = $exit_code;
@@ -404,6 +438,15 @@ sub style_text
   print color 'RESET';
 }
 
+sub style_die
+{
+  my ($text, $style) = @_;
+  print color "$style";
+  print "$text";
+  print color 'RESET';
+  die();
+}
+
 sub get_app_config
 {
   my $app_name = shift;
@@ -522,8 +565,7 @@ sub require_arg
   my $argument_num = shift;
   if (!defined($ARGV[$argument_num]))
   {
-    style_text("There are not enough arguments defined!\n", 'red');
-    die();
+    style_die("There are not enough arguments defined!\n", 'red');
   }
 }
 
