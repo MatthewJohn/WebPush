@@ -1,0 +1,4 @@
+<VirtualHost *:80>
+  DocumentRoot /var/www/WEBPUSH_APP_NAME
+  ServerName WEBPUSH_APP_NAME.localhost
+</VirtualHost>
