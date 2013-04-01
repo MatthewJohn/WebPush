@@ -420,6 +420,10 @@ sub upload_content_git
   my $app_dir = get_app_dir($app_name);
   $content_path  =~ s/@/\\@/g;
   my %upload_output = run_command("git clone $content_path $app_dir");
+  if (!$upload_output{'exit_code'})
+  {
+    style_text("SUCCESS: Checked out git repo\n", 'GREEN');
+  }
   return $upload_output{'exit_code'};
 }
 
@@ -434,12 +438,22 @@ sub upload_content_svn
     ' --username=' . $credentials{'username'} .
     ' --password=' . $credentials{'password'}
   );
+  if (!$upload_output{'exit_code'})
+  {
+    style_text("SUCCESS: Checked out SVN repo\n", 'GREEN');
+  }
   return $upload_output{'exit_code'};
 }
 
 sub upload_content_local
 {
-  print "I am uploading local content\n";
+  my ($app_name, $content_path) = @_;
+  my $app_dir = get_app_dir($app_name);
+  my %upload_output = run_local_command("scp -r '$content_path' $REMOTE_USER\@$SERVER:$app_dir/");
+  if (!$upload_output{'exit_code'})
+  {
+    style_text("SUCCESS: Uploaded app\n", 'GREEN');
+  }
 }
 
 sub clean_app_dir
@@ -476,10 +490,6 @@ sub upload_content
     elsif ($content_path =~ /.*@.*/)
     {
       my $git_output = upload_content_git($app_name, $content_path);
-      if (!$git_output)
-      {
-        style_text("SUCCESS: Checked out git repo\n", 'GREEN');
-      }
     }
     elsif ($content_path =~ /http.*/)
     {
@@ -491,15 +501,11 @@ sub upload_content
         {
           upload_content_local($app_name, $content_path);
         }
-        else
-        {
-          style_text("SUCCESS: Checked out git repo\n", 'GREEN');
-        }
       }
-      else
-      {
-        style_text("SUCCESS: Checked out SVN repo\n", 'GREEN');
-      }
+    }
+    else
+    {
+      upload_content_local($app_name, $content_path);
     }
   }
 }
