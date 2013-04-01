@@ -24,20 +24,12 @@ if (defined($ARGV[0]))
   $COMMAND = lc($ARGV[0]);
 }
 
-# Command line arguments
-# Get config file, if specified and load config
-my $WEBPUSH_CONFIG = './webpush.yml';
-my $RESULT1 = GetOptions
-(
-  'config=s' => \$WEBPUSH_CONFIG
-);
-my $YAML_CONFIG = YAML::Tiny->read($WEBPUSH_CONFIG);
-
 # Get rest of command line options and default
 # to options from config file
-my $DEBUG = $YAML_CONFIG->[0]->{'debug'};
-my $SERVER = $YAML_CONFIG->[0]->{'server'};
-my $REMOTE_USER = $YAML_CONFIG->[0]->{'remote_user'};
+my $DEBUG;
+my $SERVER;
+my $REMOTE_USER;
+my $WEBPUSH_CONFIG;
 my $REPO_TYPE;
 my $START;
 my $RESULT = GetOptions
@@ -46,8 +38,30 @@ my $RESULT = GetOptions
   'start' => \$START,
   'server=s' => \$SERVER,
   'user=s' => \$REMOTE_USER,
-  'type=s' => \$REPO_TYPE
+  'type=s' => \$REPO_TYPE,
+  'config=s' => \$WEBPUSH_CONFIG
 );
+
+# Command line arguments
+# Get config file, if specified and load config
+if (!defined($WEBPUSH_CONFIG))
+{
+  $WEBPUSH_CONFIG = './webpush.yml';
+}
+my $YAML_CONFIG = YAML::Tiny->read($WEBPUSH_CONFIG);
+
+if (!defined($DEBUG))
+{
+  $DEBUG = $YAML_CONFIG->[0]->{'debug'};
+}
+if (!defined($SERVER))
+{
+  $SERVER = $YAML_CONFIG->[0]->{'server'};
+}
+if (!defined($REMOTE_USER))
+{
+  $REMOTE_USER = $YAML_CONFIG->[0]->{'remote_user'};
+}
 
 # Check if basic config options have been specified anywhere.
 # If not, exit.
@@ -82,7 +96,14 @@ sub check_authentication
   my %authentication_status = run_command('exit');
   if ($authentication_status{'exit_code'})
   {
-    die("ERROR: You cannot authenticate with the remote server\n");
+    if ($authentication_status{'output'} =~ /Permission denied \(publickey,password\)./)
+    {
+      print "Authentication error, would you liek to add ";
+    }
+    else
+    {
+      die("ERROR: You cannot authenticate with the remote server\n");
+    }
   }
 }
 
