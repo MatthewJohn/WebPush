@@ -118,7 +118,7 @@ sub check_authentication
     }
     else
     {
-      style_die("ERROR: You cannot authenticate with the remote server\n", 'RED');
+      style_die("ERROR: There was a problem establishing a connection with the server\n", 'RED');
     }
   }
 }
