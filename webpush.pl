@@ -7,17 +7,22 @@ use strict;
 use warnings;
 use Text::FormatTable;
 use Term::ANSIColor;
+use Term::ReadKey;
 use Data::Dumper;
 
 
 my $SERVER = 'localhost';
 my $REMOTE_USER = 'root';
-my $COMMAND = lc($ARGV[0]);
 my $TEMPLATE_FILE = '/root/apachetemplate';
 my $TEMPLATE_TEMP_VALUE = 'WEBPUSH_APP_NAME';
 my $SITES_AVAILABLE_DIR = '/etc/apache2/sites-available';
 my $SITES_ENABLED_DIR = '/etc/apache2/sites-enabled';
 my $APP_BASE_DIR = '/var/www';
+my $COMMAND = '';
+if (defined($ARGV[0]))
+{
+  $COMMAND = lc($ARGV[0]);
+}
 
 main();
 
@@ -26,6 +31,7 @@ sub check_dependencies
   # This will need to check depencies for this app
   # The following packages must be installed:
     # libtext-formattable-perl
+    # libterm-readkey-perl
 
   # This won't be implemented, but for now is a good
   # place to store requisites
@@ -38,6 +44,28 @@ sub check_authentication
   {
     die("ERROR: You cannot authenticate with the remote server\n");
   }
+}
+
+sub get_credentials
+{
+  # Get username
+  print "Username: ";
+  my $username = ReadLine(0);
+  chomp($username);
+
+  # Get password
+  print "Password: ";
+  ReadMode('noecho');
+  my $password = ReadLine(0);
+  chomp($password);
+  ReadMode('normal');
+  print "\n";
+
+  # Return hash with credentials
+  my %return_hash;
+  $return_hash{'username'} = $username;
+  $return_hash{'password'} = $password;
+  return %return_hash;
 }
 
 sub run_command
@@ -348,7 +376,13 @@ sub update_app
     # If the repo type is SVN
     elsif ($repo_type == 2)
     {
-      my %update_output = run_command("svn update $app_dir -r $revision");
+      my %credentials = get_credentials();
+      my %update_output = run_command
+      (
+        "svn update $app_dir -r $revision" .
+        ' --username=' . $credentials{'username'} .
+        ' --password=' . $credentials{'password'}
+      );
       if ($update_output{'exit_code'})
       {
         style_text("ERROR: A problem occurred during svn update:\n");
@@ -384,20 +418,54 @@ sub upload_content_git
 sub upload_content_svn
 {
   my ($app_name, $content_path) = @_;
+  my %credentials = get_credentials();
+  my $app_dir = get_app_dir($app_name);
+  my %upload_output = run_command
+  (
+    "svn checkout $content_path $app_dir" .
+    ' --username=' . $credentials{'username'} .
+    ' --password=' . $credentials{'password'}
+  );
+  return $upload_output{'exit_code'};
+}
+
+sub upload_content_local
+{
+  print "I am uploading local content\n";
+}
+
+sub clean_app_dir
+{
+  my $app_name = shift;
+  if (check_app_exists($app_name))
+  {
+    # Clean app dir
+    my $app_dir = get_app_dir($app_name);
+    run_command("rm -rf $app_dir");
+    run_command("mkdir $app_dir");
+  }
 }
 
 sub upload_content
 {
-  my ($app_name, $content_path) = @_;
+  my ($app_name, $content_path, $repo_type) = @_;
 
-  # Clean app dir
-  my $app_dir = get_app_dir($app_name);
-  run_command("rm -rf $app_dir");
-  run_command("mkdir $app_dir");
-
+  clean_app_dir($app_name);
   if (check_app_exists($app_name))
   {
-    if ($content_path =~ /.*@.*/)
+    if (lc($repo_type) eq 'git')
+    {
+      upload_content_git($app_name, $content_path);
+    }
+    elsif (lc($repo_type) eq 'svn')
+    {
+      upload_content_svn($app_name, $content_path);
+    }
+    elsif (lc($repo_type) eq 'file')
+    {
+      upload_content_local($app_name, $content_path);
+    }
+    elsif ($content_path =~ /.*@.*/)
     {
       my $git_output = upload_content_git($app_name, $content_path);
       if (!$git_output)
@@ -413,8 +481,16 @@ sub upload_content
         my $git_output = upload_content_git($app_name, $content_path);
         if ($git_output)
         {
-          upload_content_path($app_name, $content_path);
+          upload_content_local($app_name, $content_path);
         }
+        else
+        {
+          style_text("SUCCESS: Checked out git repo\n", 'GREEN');
+        }
+      }
+      else
+      {
+        style_text("SUCCESS: Checked out SVN repo\n", 'GREEN');
       }
     }
   }
@@ -473,7 +549,11 @@ sub main
   elsif ($COMMAND eq 'upload')
   {
     require_arg(2);
-    upload_content($ARGV[1], $ARGV[2]);
+    if (!defined($ARGV[3]))
+    {
+      $ARGV[3] = '';
+    }
+    upload_content($ARGV[1], $ARGV[2], $ARGV[3]);
   }
   elsif ($COMMAND eq 'key')
   {
