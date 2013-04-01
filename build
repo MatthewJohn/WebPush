@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Install requirements for perl script
+apt-get install --assume-yes libtext-formattable-perl libterm-readkey-perl
+
+# Install requirement for builder
+apt-get install --assume-yes libpar-packer-perl
+
+# Make directory for output
+mkdir bin
+
+# Build application
+pp -o bin/webpush webpush.pl
