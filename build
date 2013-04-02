@@ -5,10 +5,10 @@
 if [ ! -d './bin' ]
 then
   # Install requirements for perl script
-  apt-get install --assume-yes libtext-formattable-perl libterm-readkey-perl
+  sudo apt-get install --assume-yes libtext-formattable-perl libterm-readkey-perl
 
   # Install requirement for builder
-  apt-get install --assume-yes libpar-packer-perl
+  sudo apt-get install --assume-yes libpar-packer-perl
 
   # Make directory for output
   mkdir bin
