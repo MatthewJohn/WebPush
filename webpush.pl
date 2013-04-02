@@ -10,7 +10,6 @@ use Term::ANSIColor;
 use Term::ReadKey;
 use Getopt::Long;
 use YAML::Tiny;
-use Net::SSH;
 use Data::Dumper;
 
 # Global Constants
