@@ -62,7 +62,7 @@ if (!defined($SERVER))
 }
 if (!defined($REMOTE_USER))
 {
-  $REMOTE_USER = $YAML_CONFIG->[0]->{'remote_user'};
+  $REMOTE_USER = $YAML_CONFIG->[0]->{'user'};
 }
 if (!defined($SERVER_PORT) && defined($YAML_CONFIG->[0]->{'port'}))
 {
