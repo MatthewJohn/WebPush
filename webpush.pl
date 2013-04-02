@@ -32,6 +32,7 @@ my $REMOTE_USER;
 my $WEBPUSH_CONFIG;
 my $REPO_TYPE;
 my $START;
+my $SERVER_PORT;
 my $RESULT = GetOptions
 (
   'debug' => \$DEBUG,
@@ -39,7 +40,8 @@ my $RESULT = GetOptions
   'server=s' => \$SERVER,
   'user=s' => \$REMOTE_USER,
   'type=s' => \$REPO_TYPE,
-  'config=s' => \$WEBPUSH_CONFIG
+  'config=s' => \$WEBPUSH_CONFIG,
+  'port=i' => \$SERVER_PORT
 );
 
 # Command line arguments
@@ -61,6 +63,14 @@ if (!defined($SERVER))
 if (!defined($REMOTE_USER))
 {
   $REMOTE_USER = $YAML_CONFIG->[0]->{'remote_user'};
+}
+if (!defined($SERVER_PORT) && defined($YAML_CONFIG->[0]->{'port'}))
+{
+  $SERVER_PORT = $YAML_CONFIG->[0]->{'port'};
+}
+elsif (!defined($SERVER_PORT))
+{
+  $SERVER_PORT = 22;
 }
 
 # Check if basic config options have been specified anywhere.
@@ -137,7 +147,7 @@ sub add_public_key
     <FILE>
   };
   my $public_key = $file_contents;
-  my %command_output = run_local_command("ssh $username\@$SERVER 'echo \"$public_key\" >> ~/.ssh/authorized_keys'");
+  my %command_output = run_local_command("ssh $username\@$SERVER -p $SERVER_PORT 'echo \"$public_key\" >> ~/.ssh/authorized_keys'");
 }
 
 sub get_credentials
@@ -165,7 +175,7 @@ sub get_credentials
 sub run_command
 {
   my $command = shift;
-  my %return_hash = run_local_command("ssh -o 'PasswordAuthentication=no' -o 'StrictHostKeyChecking=no' $REMOTE_USER\@$SERVER \"$command\"");
+  my %return_hash = run_local_command("ssh -o 'PasswordAuthentication=no' -o 'StrictHostKeyChecking=no' $REMOTE_USER\@$SERVER -p $SERVER_PORT \"$command\"");
   return %return_hash;
 }
 
