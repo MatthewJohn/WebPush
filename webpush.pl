@@ -215,9 +215,9 @@ sub restart_apache
 sub get_app_repo_type
 {
   my $app_name = shift;
+  my $repo_type = 0;
   if (check_app_exists($app_name))
   {
-    my $repo_type = 0;
     my $app_dir = get_app_dir($app_name);
     my %git_output = run_command("ls $app_dir/.git");
     my %svn_output = run_command("ls $app_dir/.svn");
@@ -229,12 +229,12 @@ sub get_app_repo_type
     {
       $repo_type = 2;
     }
-    return $repo_type;
   }
   else
   {
     style_text("ERROR: $app_name does not exist", 'RED');
   }
+  return $repo_type;
 }
 
 sub get_all_running
