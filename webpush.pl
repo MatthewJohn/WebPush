@@ -12,6 +12,16 @@ use Getopt::Long;
 use YAML::Tiny;
 use Data::Dumper;
 
+# Colour Constants
+use constant
+{
+  ERROR_COLOUR => 'RED',
+  INFO_COLOUR   => 'YELLOW',
+  DEBUG_COLOUR => 'BLUE',
+  SUCCESS_COLOUR => 'GREEN',
+  TITLE_COLOUR => 'GREEN BOLD'
+};
+
 # Global Constants
 my $TEMPLATE_FILE = '/root/apachetemplate';
 my $TEMPLATE_TEMP_VALUE = 'WEBPUSH_APP_NAME';
@@ -87,7 +97,7 @@ if (!defined($SERVER) || !defined($REMOTE_USER))
     "       Either specify --config=FILE with config file with\n" .
     "       the required settings, or specify both\n" .
     "       --server=HOSTNAME and --user=USERNAME\n",
-    'RED'
+    ERROR_COLOUR
   );
 }
 
@@ -116,7 +126,7 @@ sub check_authentication
         "INFO: Your public key is not currently accepted by the server.\n" .
         "      Would you like to enter credentials and WebPush will add\n" .
         "      your public key for future access? (Y/N): ",
-        'YELLOW'
+        INFO_COLOUR
       );
       my $add_key = ReadLine(0);
       chomp($add_key);
@@ -126,12 +136,12 @@ sub check_authentication
       }
       else
       {
-        style_die("ERROR: You cannot authenticate with the remote server\n", 'RED');
+        style_die("ERROR: You cannot authenticate with the remote server\n", ERROR_COLOUR);
       }
     }
     else
     {
-      style_die("ERROR: There was a problem establishing a connection with the server\n", 'RED');
+      style_die("ERROR: There was a problem establishing a connection with the server\n", ERROR_COLOUR);
     }
   }
 }
@@ -188,7 +198,7 @@ sub run_local_command
   my $command = shift;
   if ($DEBUG)
   {
-    style_text("Running command: $command\n", 'BLUE');
+    style_text("DEBUG: Running command: $command\n", DEBUG_COLOUR);
   }
   my $command_output = `$command 2>&1`;
   my $exit_code = $?;
@@ -197,7 +207,7 @@ sub run_local_command
   $return_hash{'output'} = $command_output;
   if ($DEBUG)
   {
-    style_text("Exit code: $exit_code\nOutput:\n$command_output\n\n", 'BLUE');
+    style_text("DEBUG: Exit code: $exit_code\nOutput:\n$command_output\n\n", DEBUG_COLOUR);
   }
   return %return_hash;
 }
@@ -208,7 +218,7 @@ sub restart_apache
   my %output = run_command('service apache2 reload');
   if ($output{'exit_code'})
   {
-    style_text("An error occured whilst restarting the web server", 'RED');
+    style_text("ERROR: An error occured whilst restarting the web server", ERROR_COLOUR);
   }
 }
 
@@ -232,7 +242,7 @@ sub get_app_repo_type
   }
   else
   {
-    style_text("ERROR: $app_name does not exist", 'RED');
+    style_text("ERROR: $app_name does not exist", ERROR_COLOUR);
   }
   return $repo_type;
 }
@@ -320,12 +330,12 @@ sub print_all_status
 
 sub get_title
 {
-  style_text("Dock Studios WebPush\n", 'GREEN BOLD');
+  style_text("Dock Studios WebPush\n", TITLE_COLOUR);
 }
 
 sub basic_help
 {
-  style_text("ERROR: No command was specified\n", 'RED');
+  style_text("ERROR: No command was specified\n", ERROR_COLOUR);
   print "For more help, run 'webpush help'\n";
 }
 
@@ -394,24 +404,24 @@ sub stop_app
   my $app_name = shift;
   if (!check_app_exists($app_name))
   {
-    style_text("ERROR: $app_name does not exist\n", 'RED');
+    style_text("ERROR: $app_name does not exist\n", ERROR_COLOUR);
   }
   elsif (!get_app_status($app_name))
   {
-    style_text("ERROR: $app_name is already stopped\n", 'RED');
+    style_text("ERROR: $app_name is already stopped\n", ERROR_COLOUR);
   }
   else
   {
     my %stop_command = run_command("a2dissite $app_name");
     if ($stop_command{'exit_code'})
     {
-      style_text("ERROR: An error occured whilst stopping $app_name:\n", 'RED');
+      style_text("ERROR: An error occured whilst stopping $app_name:\n", ERROR_COLOUR);
       print $stop_command{'output'};
     }
     else
     {
       restart_apache();
-      style_text("SUCCESS: $app_name has been stopped\n", 'GREEN');
+      style_text("SUCCESS: $app_name has been stopped\n", SUCCESS_COLOUR);
     }
   }
 }
@@ -421,24 +431,24 @@ sub start_app
   my $app_name = shift;
   if (!check_app_exists($app_name))
   {
-    style_text("ERROR: $app_name does not exist\n", 'RED');
+    style_text("ERROR: $app_name does not exist\n", ERROR_COLOUR);
   }
   elsif (get_app_status($app_name))
   {
-    style_text("ERROR: $app_name is already running\n", 'RED');
+    style_text("ERROR: $app_name is already running\n", ERROR_COLOUR);
   }
   else
   {
     my %start_command = run_command("a2ensite $app_name");
     if ($start_command{'exit_code'})
     {
-      style_text("ERROR: An error occured whilst starting $app_name:\n", 'RED');
+      style_text("ERROR: An error occured whilst starting $app_name:\n", ERROR_COLOUR);
       print $start_command{'output'};
     }
     else
     {
       restart_apache();
-      style_text("SUCCESS: $app_name has been started\n", 'GREEN');
+      style_text("SUCCESS: $app_name has been started\n", SUCCESS_COLOUR);
     }
   }
 }
@@ -473,7 +483,7 @@ sub create_app
   my $app_dir = get_app_dir($app_name);
   if (check_app_exists($app_name))
   {
-    style_text("ERROR: App already exists\n", 'RED');
+    style_text("ERROR: App already exists\n", ERROR_COLOUR);
     return 0;
   }
   else
@@ -481,7 +491,7 @@ sub create_app
     my %create_config = run_command("cp $TEMPLATE_FILE $config_file");
     run_command("sed -i 's/$TEMPLATE_TEMP_VALUE/$app_name/g' $config_file");
     my %create_dir = run_command("mkdir $app_dir");
-    style_text("SUCCESS: Created app $app_name\n", 'GREEN');
+    style_text("SUCCESS: Created app $app_name\n", SUCCESS_COLOUR);
     return 1;
   }
 }
@@ -491,13 +501,13 @@ sub delete_app
   my $app_name = shift();
   if (!check_app_exists($app_name))
   {
-    style_text("ERROR: $app_name does not exist\n", 'RED');
+    style_text("ERROR: $app_name does not exist\n", ERROR_COLOUR);
   }
   else
   {
     if (get_app_status($app_name))
     {
-      style_text("INFO: Stopping $app_name before removing\n", 'YELLOW');
+      style_text("INFO: Stopping $app_name before removing\n", INFO_COLOUR);
       stop_app($app_name);
     }
     my $config_file = get_app_config($app_name);
@@ -505,16 +515,16 @@ sub delete_app
     my %remove_config_output = run_command("rm $config_file");
     if ($remove_config_output{'exit_code'})
     {
-      style_text("ERROR: Could not remove config file", 'RED');
+      style_text("ERROR: Could not remove config file", ERROR_COLOUR);
       die($remove_config_output{'output'});
     }
     my %remove_app_output = run_command("rm -rf $app_dir");
     if ($remove_app_output{'exit_code'})
     {  
-      style_text("ERROR: Could not remove app directory", 'RED');
+      style_text("ERROR: Could not remove app directory", ERROR_COLOUR);
       die($remove_app_output{'output'});
     }
-    style_text("SUCCESS: Removed $app_name\n", 'GREEN');
+    style_text("SUCCESS: Removed $app_name\n", SUCCESS_COLOUR);
   }
 }
 
@@ -542,12 +552,12 @@ sub update_app
       my %update_output = run_command("git --work-tree=$app_dir --git-dir=$git_dir checkout $revision");
       if ($update_output{'exit_code'})
       {
-        style_text("ERROR: A problem occurred during git checkout:\n", 'RED');
+        style_text("ERROR: A problem occurred during git checkout:\n", ERROR_COLOUR);
         die($update_output{'output'});
       }
       else
       {
-        style_text("SUCCESS: $app_name has been updated to $revision\n", 'GREEN');
+        style_text("SUCCESS: $app_name has been updated to $revision\n", SUCCESS_COLOUR);
       }
     }
     # If the repo type is SVN
@@ -562,12 +572,12 @@ sub update_app
       );
       if ($update_output{'exit_code'})
       {
-        style_text("ERROR: A problem occurred during svn update:\n");
+        style_text("ERROR: A problem occurred during svn update:\n", ERROR_COLOUR);
         die($update_output{'output'});
       }
       else
       {
-        style_text("SUCCESS: $app_name has been updated to $revision\n", 'GREEN');
+        style_text("SUCCESS: $app_name has been updated to $revision\n", SUCCESS_COLOUR);
       }
     }
   }
@@ -578,7 +588,7 @@ sub require_arg
   my $argument_num = shift;
   if (!defined($ARGV[$argument_num]))
   {
-    style_die("There are not enough arguments defined!\n", 'red');
+    style_die("ERROR: There are not enough arguments defined!\n", ERROR_COLOUR);
   }
 }
 
@@ -590,7 +600,7 @@ sub upload_content_git
   my %upload_output = run_command("git clone $content_path $app_dir");
   if (!$upload_output{'exit_code'})
   {
-    style_text("SUCCESS: Checked out git repo\n", 'GREEN');
+    style_text("SUCCESS: Checked out git repo\n", SUCCESS_COLOUR);
   }
   return $upload_output{'exit_code'};
 }
@@ -608,7 +618,7 @@ sub upload_content_svn
   );
   if (!$upload_output{'exit_code'})
   {
-    style_text("SUCCESS: Checked out SVN repo\n", 'GREEN');
+    style_text("SUCCESS: Checked out SVN repo\n", SUCCESS_COLOUR);
   }
   return $upload_output{'exit_code'};
 }
@@ -620,7 +630,7 @@ sub upload_content_local
   my %upload_output = run_local_command("scp -r '$content_path' $REMOTE_USER\@$SERVER:$app_dir/");
   if (!$upload_output{'exit_code'})
   {
-    style_text("SUCCESS: Uploaded app\n", 'GREEN');
+    style_text("SUCCESS: Uploaded app\n", SUCCESS_COLOUR);
   }
 }
 
@@ -689,11 +699,11 @@ sub update_app_root
     $app_dir =~ s/\//\\\//g;
     run_command("sed -i 's/.*DocumentRoot.*/DocumentRoot $app_dir$app_root/g\' $config_file");
     restart_apache();
-    style_text("SUCCESS: Updated application root\n", 'GREEN');
+    style_text("SUCCESS: Updated application root\n", SUCCESS_COLOUR);
   }
   else
   {
-    style_text("ERROR: App does not exist\n", 'RED');
+    style_text("ERROR: App does not exist\n", ERROR_COLOUR);
   }
 }
 
@@ -702,7 +712,7 @@ sub print_public_key
   my %public_key_output = run_command("cat ~/.ssh/id_rsa.pub");
   if ($public_key_output{'exit_code'})
   {
-    style_text("ERROR: A problem occurred whilst obtaining the public key\n");
+    style_text("ERROR: A problem occurred whilst obtaining the public key\n", ERROR_COLOUR);
   }
   else
   {
@@ -737,7 +747,7 @@ sub main
     require_arg(1);
     if (create_app($ARGV[1]) && $START)
     {
-      style_text("INFO: Starting $ARGV[1]\n", 'YELLOW');
+      style_text("INFO: Starting $ARGV[1]\n", INFO_COLOUR);
       start_app($ARGV[1]);
     }
   }
