@@ -72,6 +72,10 @@ elsif (!defined($SERVER_PORT))
 {
   $SERVER_PORT = 22;
 }
+if (!defined($REPO_TYPE))
+{
+  $REPO_TYPE = '';
+}
 
 # Check if basic config options have been specified anywhere.
 # If not, exit.
